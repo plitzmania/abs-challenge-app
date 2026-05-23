@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ABS Challenge Desk</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">ABS challenge strategy</p>
+          <h1>Challenge Desk</h1>
+        </div>
+        <div class="status-pill" id="settings-status">Default model loaded</div>
+      </header>
+
+      <nav class="tabbar" aria-label="ABS Challenge Desk tabs">
+        <button class="tab-button active" type="button" data-tab="live">Live Recommendation</button>
+        <button class="tab-button" type="button" data-tab="guide">Guide Export</button>
+        <button class="tab-button" type="button" data-tab="settings">Model Settings</button>
+        <button class="tab-button" type="button" data-tab="method">Method</button>
+        <button class="tab-button" type="button" data-tab="how">How To Use</button>
+      </nav>
+
+      <main>
+        <section class="tab-panel active" id="tab-live">
+          <div class="work-grid">
+            <form class="panel form-panel" id="live-form">
+              <div class="panel-heading">
+                <div>
+                  <h2>Current Situation</h2>
+                </div>
+              </div>
+
+              <div class="form-grid">
+                <label>
+                  Role
+                  <select id="role" name="role">
+                    <option value="batter">Batter</option>
+                    <option value="catcher">Catcher</option>
+                  </select>
+                </label>
+
+                <label>
+                  Challenges Left
+                  <select id="inventory" name="inventory">
+                    <option value="1">1</option>
+                    <option value="2" selected>2</option>
+                  </select>
+                </label>
+
+                <label>
+                  Inning
+                  <input id="inning" name="inning" type="number" min="1" max="10" value="7">
+                </label>
+
+                <label>
+                  Half
+                  <select id="half" name="half">
+                    <option value="Top">Top</option>
+                    <option value="Bottom">Bottom</option>
+                  </select>
+                </label>
+
+                <label>
+                  Outs
+                  <select id="outs" name="outs">
+                    <option value="0">0</option>
+                    <option value="1" selected>1</option>
+                    <option value="2">2</option>
+                  </select>
+                </label>
+
+                <div class="score-pair">
+                  <label>
+                    My Team Score
+                    <input id="my-score" name="myScore" type="number" min="0" max="99" value="3">
+                  </label>
+
+                  <label>
+                    Other Team Score
+                    <input id="other-score" name="otherScore" type="number" min="0" max="99" value="3">
+                  </label>
+                </div>
+
+                <fieldset class="base-field">
+                  <legend>Runners</legend>
+                  <label class="check-row">
+                    <input type="checkbox" name="base" value="1">
+                    First
+                  </label>
+                  <label class="check-row">
+                    <input type="checkbox" name="base" value="2" checked>
+                    Second
+                  </label>
+                  <label class="check-row">
+                    <input type="checkbox" name="base" value="4">
+                    Third
+                  </label>
+                </fieldset>
+
+              </div>
+
+              <button class="primary-button" type="submit">Run Now</button>
+            </form>
+
+            <section class="panel result-panel" aria-live="polite">
+              <div class="panel-heading">
+                <div>
+                  <h2>Recommendation</h2>
+                  <p id="recommendation-context">Run the model to price the current plate appearance.</p>
+                </div>
+              </div>
+
+              <div class="level-banner" id="level-banner">
+                <span class="level-kicker">Level</span>
+                <strong>Waiting</strong>
+              </div>
+
+              <div class="metric-grid" id="metric-grid">
+                <div class="metric-tile">
+                  <span>Team Win Probability</span>
+                  <strong>-</strong>
+                </div>
+                <div class="metric-tile">
+                  <span>Success Probability</span>
+                  <strong>-</strong>
+                </div>
+                <div class="metric-tile">
+                  <span>Challenge Rows</span>
+                  <strong>-</strong>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <section class="panel table-panel">
+            <div class="panel-heading">
+              <div>
+                <h2>Threshold Check</h2>
+                <p>Rows show whether each broader player gate clears the model thresholds.</p>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Player Gate</th>
+                    <th>Sample</th>
+                    <th>Median Expected Value</th>
+                    <th>Positive Rate</th>
+                    <th>Median Overturn Value</th>
+                    <th>Median Failure Cost</th>
+                  </tr>
+                </thead>
+                <tbody id="bucket-table">
+                  <tr><td colspan="6">No recommendation run yet.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="panel table-panel">
+            <div class="panel-heading">
+              <div>
+                <h2>Count Detail</h2>
+                <p id="count-detail-note">Batter rows price called strikes overturned to balls. Catcher rows price called balls overturned to strikes.</p>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Count</th>
+                    <th>Gate</th>
+                    <th>Overturn Value</th>
+                    <th>Failure Cost</th>
+                    <th>Needed Success</th>
+                    <th>Expected Value</th>
+                    <th>Model Call</th>
+                  </tr>
+                </thead>
+                <tbody id="count-table">
+                  <tr><td colspan="7">No count detail yet.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+
+        <section class="tab-panel" id="tab-guide">
+          <div class="panel">
+            <div class="panel-heading">
+              <div>
+                <h2>Coaching Guide Export</h2>
+                <p>Preview the staff sheet generated from the active model settings.</p>
+              </div>
+              <div class="button-row">
+                <button class="secondary-button" id="refresh-guide" type="button">Refresh</button>
+                <button class="primary-button" id="download-guide" type="button">Download Markdown</button>
+              </div>
+            </div>
+            <div class="guide-layout">
+              <section class="guide-preview" aria-label="Coaching guide preview">
+                <div id="guide-preview"></div>
+              </section>
+              <section class="raw-export">
+                <div class="raw-export-heading">
+                  <h3>Markdown Source</h3>
+                  <p>For handoff, edits, or archiving.</p>
+                </div>
+                <textarea id="guide-output" spellcheck="false" aria-label="Generated coaching guide"></textarea>
+              </section>
+            </div>
+          </div>
+        </section>
+
+        <section class="tab-panel" id="tab-settings">
+          <form class="panel" id="settings-form">
+            <div class="panel-heading">
+              <div>
+                <h2>Model Settings</h2>
+                <p>Tune the assumptions behind the challenge recommendation model.</p>
+              </div>
+              <div class="button-row">
+                <button class="secondary-button" id="reset-settings" type="button">Reset Defaults</button>
+                <button class="primary-button" type="submit">Save Settings</button>
+              </div>
+            </div>
+
+            <section class="settings-intro" aria-label="Model settings explanation">
+              <div>
+                <span>Core Formula</span>
+                <strong>Expected Value = (success chance x overturn value) - (miss chance x challenge cost)</strong>
+                <p>These controls change how aggressive the model is before it turns the math into player-facing levels.</p>
+              </div>
+              <div class="settings-intro-grid">
+                <div>
+                  <strong>Success</strong>
+                  <p>Higher rates make challenges easier to justify.</p>
+                </div>
+                <div>
+                  <strong>Cost</strong>
+                  <p>Higher costs protect challenge inventory.</p>
+                </div>
+                <div>
+                  <strong>Thresholds</strong>
+                  <p>Higher bars keep levels more conservative.</p>
+                </div>
+              </div>
+            </section>
+
+            <div class="settings-grid">
+              <section class="settings-section">
+                <h3>Expected Success Probability</h3>
+                <p class="settings-help">Estimated chance the challenge is overturned. Default inputs are the public success rates for all catchers and all batters. If the user thinks a specific catcher or batter has more or less projected success, adjust the input.</p>
+                <label>
+                  Batter Expected Success
+                  <span class="input-with-suffix">
+                    <input id="setting-p-batter" type="number" min="0" max="100" step="0.1">
+                    <span aria-hidden="true">%</span>
+                  </span>
+                </label>
+                <label>
+                  Catcher Expected Success
+                  <span class="input-with-suffix">
+                    <input id="setting-p-catcher" type="number" min="0" max="100" step="0.1">
+                    <span aria-hidden="true">%</span>
+                  </span>
+                </label>
+              </section>
+
+              <section class="settings-section">
+                <h3>Challenge Cost</h3>
+                <p class="settings-help">How expensive it is to lose a challenge. The 5.5 WP point default is anchored to neutral, middle-game future opportunity samples; inventory factors make the last challenge more costly than the first.</p>
+                <label>
+                  Base Cost, WP Points
+                  <input id="setting-c-base" type="number" min="0" max="30" step="0.1">
+                </label>
+                <label>
+                  2 Challenges Left Factor
+                  <input id="setting-inv-2" type="number" min="0" max="5" step="0.05">
+                </label>
+                <label>
+                  1 Challenge Left Factor
+                  <input id="setting-inv-1" type="number" min="0" max="5" step="0.05">
+                </label>
+              </section>
+
+              <section class="settings-section">
+                <h3>Remaining Game</h3>
+                <p class="settings-help">These weights scale the opportunity cost of spending a challenge. Early innings are higher because more future high-value challenge chances remain; late innings are lower because unused challenges have less time to matter.</p>
+                <label>
+                  Innings 1-3
+                  <input id="setting-phase-early" type="number" min="0" max="5" step="0.05">
+                </label>
+                <label>
+                  Innings 4-6
+                  <input id="setting-phase-middle" type="number" min="0" max="5" step="0.05">
+                </label>
+                <label>
+                  Inning 7
+                  <input id="setting-phase-seventh" type="number" min="0" max="5" step="0.05">
+                </label>
+                <label>
+                  Inning 8
+                  <input id="setting-phase-eighth" type="number" min="0" max="5" step="0.05">
+                </label>
+                <label>
+                  Inning 9+
+                  <input id="setting-phase-late" type="number" min="0" max="5" step="0.05">
+                </label>
+              </section>
+
+              <section class="settings-section">
+                <h3>Level Thresholds</h3>
+                <p class="settings-help">Rules for upgrading from Closed to Full Count, Deep Count, or Open. Higher values demand stronger evidence.</p>
+                <label>
+                  Full Count Median EV Minimum
+                  <input id="setting-full-median" type="number" min="-20" max="20" step="0.1">
+                </label>
+                <label>
+                  Deep Count Median EV Minimum
+                  <input id="setting-deep-median" type="number" min="-20" max="20" step="0.1">
+                </label>
+                <label>
+                  Deep Count Positive Rate
+                  <input id="setting-deep-rate" type="number" min="0" max="100" step="1">
+                </label>
+                <label>
+                  Open Median EV Minimum
+                  <input id="setting-open-median" type="number" min="-20" max="20" step="0.1">
+                </label>
+                <label>
+                  Open Positive Rate
+                  <input id="setting-open-rate" type="number" min="0" max="100" step="1">
+                </label>
+              </section>
+            </div>
+
+            <section class="settings-section wp-section">
+              <h3>Current Win Probability Cost Curve</h3>
+              <p class="settings-help">Scales challenge cost by the team's current win probability. Lower multipliers loosen the model because unused challenges have less future value.</p>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Team WP Band</th>
+                      <th>Multiplier</th>
+                    </tr>
+                  </thead>
+                  <tbody id="wp-factor-settings"></tbody>
+                </table>
+              </div>
+            </section>
+          </form>
+        </section>
+
+        <section class="tab-panel" id="tab-method">
+          <div class="panel prose-panel">
+            <h2>What We Did</h2>
+            <p>The decision engine uses expected value: challenge value equals success probability times the win-probability swing of a successful overturn, minus failure probability times the opportunity cost of losing the challenge.</p>
+            <pre><code>Expected Value = p * V - (1 - p) * C</code></pre>
+            <p><strong>p</strong> is expected challenge success probability. The v1 defaults are 47% for batters and 59% for catchers, with a manual override for team or player reads.</p>
+            <p><strong>V</strong> is the win probability swing between the umpire's call and the corrected call. The app asks Savant's count-aware Game Strategy Explorer endpoint for state values, so inning, half, score, outs, runners, and count all matter.</p>
+            <p><strong>C</strong> is the marginal cost of burning a challenge. The v1 proxy is 5.5 win probability points times inventory, remaining-game, and current-WP multipliers.</p>
+            <div class="method-grid">
+              <div class="method-box">
+                <h3>Closed</h3>
+                <p>Fallback when Full Count does not clear. Only unmistakable misses.</p>
+              </div>
+              <div class="method-box">
+                <h3>Full Count</h3>
+                <p>Clears when median expected value of 3-2 opportunities is at least zero.</p>
+              </div>
+              <div class="method-box">
+                <h3>Deep Count</h3>
+                <p>Clears when full-count plus two-strike or three-ball situations have nonnegative median expected value and at least a 55% positive rate.</p>
+              </div>
+              <div class="method-box">
+                <h3>Open</h3>
+                <p>Clears when all counts have nonnegative median expected value and at least a 65% positive rate.</p>
+              </div>
+            </div>
+            <p>The public endpoint is useful for a prototype, but a team-grade version should cache responses and let clubs plug in their own win expectancy model.</p>
+          </div>
+        </section>
+
+        <section class="tab-panel" id="tab-how">
+          <div class="panel prose-panel">
+            <h2>How To Use</h2>
+            <p>Before a plate appearance, set the game state, the challenge side, and the number of challenges remaining. The recommendation is the player-facing gate for that plate appearance.</p>
+            <ol>
+              <li>My Team is the side receiving the recommendation. For catcher recommendations, My Team is the fielding team.</li>
+              <li>Set expected challenge success rates in Model Settings when the staff has a better team or player read.</li>
+              <li>Give hitters the simple gate only. Catchers can receive the count detail table when the staff wants more precision.</li>
+              <li>Use Guide Export after settings changes so the staff handout matches the model.</li>
+            </ol>
+            <p>Open does not mean challenge randomly. It means the count restriction is open if the player has a strong read that the call missed.</p>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

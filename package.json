@@ -1,0 +1,13 @@
+{
+  "name": "abs-challenge-desk",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=20 <25"
+  },
+  "scripts": {
+    "start": "node app/server.mjs",
+    "test": "node --test test/*.test.mjs && node --check app/server.mjs && node --check app/model.mjs && node --check app/public/app.js"
+  },
+  "type": "module"
+}
