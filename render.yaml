@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: abs-challenge-desk
+    name: abs-challenge-mets
     runtime: node
     plan: free
     buildCommand: npm install
