@@ -1599,6 +1599,7 @@ export function generateGuideHtml(configInput = {}, optionsInput = {}, levelMap 
   return `
     <article class="guide-sheet">
       <header class="guide-sheet-header">
+        <img class="guide-brand-mark" src="/mets-insignia.svg" alt="New York Mets insignia">
         <div>
           <span class="guide-label">${escapeHtml(guideHeaderLabel(options))}</span>
           <h2>${escapeHtml(guideTitle(options))}</h2>
