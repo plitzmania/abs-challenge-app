@@ -2,15 +2,44 @@ const CONFIG_STORAGE_KEY = "abs-challenge-config-v2";
 
 let defaultConfig = null;
 let config = null;
-let generatedGuide = "";
+let generatedCsv = "";
+let guideCsvIsCurrent = false;
 let liveRunTimer = null;
 let liveRunId = 0;
+let guideRunTimer = null;
+let guideRunId = 0;
+let guideIsDirty = true;
+let guideIsLoading = false;
+let settingsApplyTimer = null;
 
 const qs = (selector, root = document) => root.querySelector(selector);
 const qsa = (selector, root = document) => [...root.querySelectorAll(selector)];
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
+}
+
+function mergeInto(target, source) {
+  if (!source || typeof source !== "object") return target;
+  for (const [key, value] of Object.entries(source)) {
+    if (
+      value &&
+      typeof value === "object" &&
+      !Array.isArray(value) &&
+      target[key] &&
+      typeof target[key] === "object" &&
+      !Array.isArray(target[key])
+    ) {
+      mergeInto(target[key], value);
+    } else if (value !== undefined) {
+      target[key] = value;
+    }
+  }
+  return target;
+}
+
+function mergeDefaults(savedConfig) {
+  return mergeInto(clone(defaultConfig), savedConfig);
 }
 
 function formatPercent(value, digits = 1) {
@@ -58,19 +87,95 @@ function setStatus(message) {
   qs("#settings-status").textContent = message;
 }
 
-async function requestJson(url, options = {}) {
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {}),
-    },
-  });
-  const data = await response.json();
-  if (!response.ok) {
-    throw new Error(data.error || `Request failed with ${response.status}`);
+function guideWorkloadMessage() {
+  const scoreColumns = qs("#guide-score-mode").value === "detailed" ? 11 : 7;
+  const guideCells = 2 * 5 * 2 * 3 * 8 * scoreColumns;
+  return `Calculating ${guideCells.toLocaleString()} guide cells across 288 representative game-state tables. Please hold.`;
+}
+
+function updateGuideRefreshButton() {
+  const refreshButton = qs("#refresh-guide");
+  if (!refreshButton) return;
+  refreshButton.disabled = guideIsLoading || !guideIsDirty;
+}
+
+function setGuideDirty(isDirty) {
+  guideIsDirty = isDirty;
+  if (isDirty) {
+    generatedCsv = "";
+    guideCsvIsCurrent = false;
   }
-  return data;
+  updateGuideRefreshButton();
+}
+
+function setGuideLoading(isLoading) {
+  const loader = qs("#guide-loader");
+  const refreshButton = qs("#refresh-guide");
+  guideIsLoading = isLoading;
+  loader.hidden = !isLoading;
+  refreshButton.setAttribute("aria-busy", isLoading ? "true" : "false");
+  if (isLoading) {
+    qs("#guide-loader-text").textContent = guideWorkloadMessage();
+  }
+  updateGuideRefreshButton();
+}
+
+async function requestJson(url, options = {}) {
+  const { timeoutMs = 20000, timeoutMessage = "Request took too long. Try again.", ...fetchOptions } = options;
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      ...fetchOptions,
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        ...(fetchOptions.headers || {}),
+      },
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || `Request failed with ${response.status}`);
+    }
+    return data;
+  } catch (error) {
+    if (error.name === "AbortError") {
+      throw new Error(timeoutMessage);
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
+async function requestText(url, options = {}) {
+  const { timeoutMs = 20000, timeoutMessage = "Request took too long. Try again.", ...fetchOptions } = options;
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      ...fetchOptions,
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        ...(fetchOptions.headers || {}),
+      },
+    });
+    const text = await response.text();
+    if (!response.ok) {
+      throw new Error(text || `Request failed with ${response.status}`);
+    }
+    return text;
+  } catch (error) {
+    if (error.name === "AbortError") {
+      throw new Error(timeoutMessage);
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
 }
 
 function activateTab(tabName) {
@@ -107,14 +212,14 @@ function recommendationPayload() {
       bases: basesFromForm(),
       runDiff,
     },
-    config,
+    config: configFromLiveForm(),
   };
 }
 
 function categoryLabel(category) {
   if (category === "full_count") return "Full Count";
   if (category === "deep_count") return "Deep Count";
-  return "Open";
+  return "Aggressive";
 }
 
 function levelClass(level) {
@@ -143,7 +248,7 @@ function renderBuckets(result) {
   const labels = [
     ["Full Count", result.recommendation.buckets.full],
     ["Deep Count", result.recommendation.buckets.deep],
-    ["Open", result.recommendation.buckets.open],
+    ["Aggressive", result.recommendation.buckets.open],
   ];
   qs("#bucket-table").innerHTML = labels.map(([label, stats]) => `
     <tr>
@@ -255,6 +360,7 @@ function scheduleRecommendation() {
 function fillSettingsForm() {
   qs("#setting-p-batter").value = (config.successRates.batter * 100).toFixed(1);
   qs("#setting-p-catcher").value = (config.successRates.catcher * 100).toFixed(1);
+  qs("#setting-c-model").value = config.challengeCost.model || "v1";
   qs("#setting-c-base").value = config.challengeCost.baseWpPoints.toFixed(1);
   qs("#setting-inv-2").value = config.challengeCost.inventoryFactor[2];
   qs("#setting-inv-1").value = config.challengeCost.inventoryFactor[1];
@@ -277,12 +383,25 @@ function fillSettingsForm() {
       </td>
     </tr>
   `).join("");
+  updateCostModelControls();
+}
+
+function fillLiveForm() {
+  qs("#live-p-batter").value = (config.successRates.batter * 100).toFixed(1);
+  qs("#live-p-catcher").value = (config.successRates.catcher * 100).toFixed(1);
+}
+
+function fillGuideForm() {
+  qs("#guide-p-batter").value = (config.successRates.batter * 100).toFixed(1);
+  qs("#guide-p-catcher").value = (config.successRates.catcher * 100).toFixed(1);
+  updateGuideSuccessControls();
 }
 
 function configFromSettingsForm() {
   const next = clone(config);
   next.successRates.batter = parsePercentInput(qs("#setting-p-batter").value);
   next.successRates.catcher = parsePercentInput(qs("#setting-p-catcher").value);
+  next.challengeCost.model = qs("#setting-c-model").value;
   next.challengeCost.baseWpPoints = parseNumberInput("setting-c-base");
   next.challengeCost.inventoryFactor[2] = parseNumberInput("setting-inv-2");
   next.challengeCost.inventoryFactor[1] = parseNumberInput("setting-inv-1");
@@ -305,20 +424,96 @@ function configFromSettingsForm() {
   return next;
 }
 
-function saveSettings(event) {
-  event.preventDefault();
+function updateCostModelControls() {
+  const usesV1 = qs("#setting-c-model").value !== "depletionV15";
+  qsa(".v1-cost-control").forEach((section) => {
+    section.classList.toggle("is-muted", !usesV1);
+    qsa("input", section).forEach((input) => {
+      input.disabled = !usesV1;
+    });
+  });
+  qsa("[data-wp-index]").forEach((input) => {
+    input.disabled = !usesV1;
+  });
+  qs(".wp-section").classList.toggle("is-muted", !usesV1);
+}
+
+function configFromLiveForm() {
+  const next = clone(config);
+  const batterRate = parsePercentInput(qs("#live-p-batter").value);
+  const catcherRate = parsePercentInput(qs("#live-p-catcher").value);
+  if (batterRate != null) next.successRates.batter = batterRate;
+  if (catcherRate != null) next.successRates.catcher = catcherRate;
+  return next;
+}
+
+function configFromGuideForm() {
+  const next = clone(config);
+  const batterRate = parsePercentInput(qs("#guide-p-batter").value);
+  const catcherRate = parsePercentInput(qs("#guide-p-catcher").value);
+  if (batterRate != null) next.successRates.batter = batterRate;
+  if (catcherRate != null) next.successRates.catcher = catcherRate;
+  return next;
+}
+
+function guideOptions() {
+  return {
+    label: qs("#guide-label").value.trim(),
+    role: qs("#guide-role").value,
+    scoreMode: qs("#guide-score-mode").value,
+  };
+}
+
+function guidePayload() {
+  return {
+    config: configFromGuideForm(),
+    options: guideOptions(),
+  };
+}
+
+function guidePayloadKey(payload) {
+  return JSON.stringify(payload);
+}
+
+function updateGuideSuccessControls() {
+  const role = qs("#guide-role").value;
+  qsa("[data-guide-success-role]").forEach((control) => {
+    control.classList.toggle("is-hidden", control.dataset.guideSuccessRole !== role);
+  });
+}
+
+function applySettings(statusMessage = "Settings applied") {
   config = configFromSettingsForm();
   localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(config));
-  setStatus("Settings saved");
-  refreshGuide();
+  fillLiveForm();
+  fillGuideForm();
+  setGuideDirty(true);
+  setStatus(statusMessage);
+}
+
+function scheduleSettingsApply() {
+  clearTimeout(settingsApplyTimer);
+  setStatus("Settings changed. Updating...");
+  settingsApplyTimer = setTimeout(() => {
+    applySettings();
+  }, 350);
+}
+
+function saveSettings(event) {
+  event.preventDefault();
+  clearTimeout(settingsApplyTimer);
+  applySettings("Settings saved");
 }
 
 function resetSettings() {
+  clearTimeout(settingsApplyTimer);
   config = clone(defaultConfig);
   localStorage.removeItem(CONFIG_STORAGE_KEY);
   fillSettingsForm();
+  fillLiveForm();
+  fillGuideForm();
+  setGuideDirty(true);
   setStatus("Defaults restored");
-  refreshGuide();
 }
 
 function setActiveGuidePage(pageId) {
@@ -346,50 +541,173 @@ function initializeGuideBinder() {
   }
 }
 
-function handleGuideBinderClick(event) {
+async function ensureGuidePage(button) {
+  const pageId = button.dataset.lookupTarget;
+  const guide = qs("#guide-preview");
+  if (guide.querySelector(`[data-lookup-page="${pageId}"]`)) return true;
+  if (guideIsDirty) {
+    setStatus("Refresh preview to update the guide before changing pages.");
+    return false;
+  }
+
+  setStatus("Loading guide page...");
+  const html = await requestText("/api/guide-page-html", {
+    method: "POST",
+    timeoutMs: 12000,
+    timeoutMessage: "Guide page took too long to load. Try the page again.",
+    body: JSON.stringify({
+      config: configFromGuideForm(),
+      options: guideOptions(),
+      page: {
+        role: button.dataset.lookupRole,
+        inventory: Number(button.dataset.lookupInventory),
+        inningKey: button.dataset.lookupInning,
+        halfKey: button.dataset.lookupHalf,
+      },
+    }),
+  });
+  const section = guide.querySelector(`[data-lookup-section="${button.dataset.lookupRole}-${button.dataset.lookupInventory}"]`);
+  const grid = section?.querySelector("[data-lookup-page-grid]");
+  if (!grid) return false;
+  grid.insertAdjacentHTML("beforeend", html);
+  setStatus("Guide page loaded");
+  return true;
+}
+
+async function handleGuideBinderClick(event) {
   const button = event.target.closest("[data-lookup-target]");
   if (!button) return;
   event.preventDefault();
+  if (!await ensureGuidePage(button)) return;
   setActiveGuidePage(button.dataset.lookupTarget);
 }
 
-async function refreshGuide() {
+function markGuideDirty() {
+  updateGuideSuccessControls();
+  clearTimeout(guideRunTimer);
+  guideRunId += 1;
+  setGuideLoading(false);
+  setGuideDirty(true);
+  setStatus("Guide inputs changed. Refresh preview to update.");
+}
+
+async function refreshGuide(runId = null) {
+  const thisRunId = runId ?? (guideRunId += 1);
+  const payload = guidePayload();
+  const payloadKey = guidePayloadKey(payload);
+  clearTimeout(guideRunTimer);
   setStatus("Generating guide...");
+  setGuideLoading(true);
   try {
-    const result = await requestJson("/api/guide", {
+    const html = await requestText("/api/guide-html", {
       method: "POST",
-      body: JSON.stringify({ config }),
+      timeoutMs: 12000,
+      timeoutMessage: "Guide generation took too long. Refresh preview to try again.",
+      body: JSON.stringify(payload),
     });
-    generatedGuide = result.markdown;
-    qs("#guide-output").value = generatedGuide;
-    qs("#guide-preview").innerHTML = result.html || "";
+    if (thisRunId !== guideRunId && payloadKey !== guidePayloadKey(guidePayload())) return false;
+    setStatus("Rendering guide...");
+    qs("#guide-preview").innerHTML = html || "";
     initializeGuideBinder();
+    setGuideDirty(false);
     setStatus("Guide generated");
+    return true;
   } catch (error) {
+    if (thisRunId !== guideRunId) return false;
+    setGuideDirty(true);
     setStatus(error.message);
+    return false;
+  } finally {
+    setGuideLoading(false);
   }
 }
 
-function downloadGuide() {
-  if (!generatedGuide) {
-    generatedGuide = qs("#guide-output").value;
-  }
-  const blob = new Blob([generatedGuide], { type: "text/markdown" });
+async function refreshGuideCsv() {
+  setStatus("Preparing CSV...");
+  const payload = guidePayload();
+  const csv = await requestText("/api/guide-csv", {
+    method: "POST",
+    timeoutMs: 12000,
+    timeoutMessage: "CSV generation took too long. Try Download CSV again.",
+    body: JSON.stringify(payload),
+  });
+  generatedCsv = csv || "";
+  guideCsvIsCurrent = true;
+  return Boolean(generatedCsv);
+}
+
+function exportBaseName(extension) {
+  const options = guideOptions();
+  const label = options.label || `abs-${options.role}-guide`;
+  const slug = label
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 64) || `abs-${options.role}-guide`;
+  return `${slug}.${extension}`;
+}
+
+function downloadBlob(contents, type, filename) {
+  const blob = new Blob([contents], { type });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = "abs-challenge-coaching-guide.md";
+  link.download = filename;
   document.body.append(link);
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
 }
 
+async function downloadCsv() {
+  clearTimeout(guideRunTimer);
+  if (guideIsDirty || !generatedCsv) {
+    const refreshed = await refreshGuide();
+    if (!refreshed) return;
+  }
+  if (!guideCsvIsCurrent) {
+    const csvReady = await refreshGuideCsv();
+    if (!csvReady) return;
+  }
+  if (!generatedCsv) {
+    setStatus("Regenerate the guide before downloading CSV.");
+    return;
+  }
+  downloadBlob(generatedCsv, "text/csv", exportBaseName("csv"));
+}
+
+async function printGuide() {
+  clearTimeout(guideRunTimer);
+  setStatus("Preparing print guide...");
+  setGuideLoading(true);
+  const payload = guidePayload();
+  try {
+    const html = await requestText("/api/guide-print-html", {
+      method: "POST",
+      timeoutMs: 20000,
+      timeoutMessage: "Print guide took too long to prepare. Try Print again.",
+      body: JSON.stringify(payload),
+    });
+    qs("#guide-preview").innerHTML = html || "";
+    initializeGuideBinder();
+    setGuideDirty(false);
+    setStatus("Print guide ready");
+  } catch (error) {
+    setGuideDirty(true);
+    setStatus(error.message);
+    return;
+  } finally {
+    setGuideLoading(false);
+  }
+  document.body.classList.add("is-printing-guide");
+  window.print();
+}
+
 function loadSavedConfig() {
   const saved = localStorage.getItem(CONFIG_STORAGE_KEY);
   if (!saved) return clone(defaultConfig);
   try {
-    return JSON.parse(saved);
+    return mergeDefaults(JSON.parse(saved));
   } catch {
     localStorage.removeItem(CONFIG_STORAGE_KEY);
     return clone(defaultConfig);
@@ -400,7 +718,9 @@ async function init() {
   defaultConfig = await requestJson("/api/config");
   config = loadSavedConfig();
   fillSettingsForm();
-  refreshGuide();
+  fillLiveForm();
+  fillGuideForm();
+  setGuideDirty(true);
 
   qsa(".tab-button").forEach((button) => {
     button.addEventListener("click", () => activateTab(button.dataset.tab));
@@ -411,10 +731,22 @@ async function init() {
     input.addEventListener("change", scheduleRecommendation);
   });
   qs("#settings-form").addEventListener("submit", saveSettings);
+  qsa("input, select", qs("#settings-form")).forEach((input) => {
+    input.addEventListener("input", scheduleSettingsApply);
+    input.addEventListener("change", scheduleSettingsApply);
+  });
+  qs("#setting-c-model").addEventListener("change", updateCostModelControls);
   qs("#reset-settings").addEventListener("click", resetSettings);
+  qs("#guide-form").addEventListener("submit", (event) => event.preventDefault());
+  qsa("input, select", qs("#guide-form")).forEach((input) => {
+    input.addEventListener("input", markGuideDirty);
+    input.addEventListener("change", markGuideDirty);
+  });
   qs("#refresh-guide").addEventListener("click", refreshGuide);
-  qs("#download-guide").addEventListener("click", downloadGuide);
+  qs("#download-csv").addEventListener("click", downloadCsv);
+  qs("#print-guide").addEventListener("click", printGuide);
   qs("#guide-preview").addEventListener("click", handleGuideBinderClick);
+  window.addEventListener("afterprint", () => document.body.classList.remove("is-printing-guide"));
 }
 
 init().catch((error) => {

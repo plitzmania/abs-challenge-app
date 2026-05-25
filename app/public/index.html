@@ -17,15 +17,16 @@
       </header>
 
       <nav class="tabbar" aria-label="ABS Challenge Desk tabs">
-        <button class="tab-button active" type="button" data-tab="live">Live Recommendation</button>
+        <button class="tab-button active" type="button" data-tab="intro">Intro</button>
         <button class="tab-button" type="button" data-tab="guide">Guide Export</button>
+        <button class="tab-button" type="button" data-tab="live">Live Recommendation</button>
         <button class="tab-button" type="button" data-tab="settings">Model Settings</button>
-        <button class="tab-button" type="button" data-tab="method">Method</button>
+        <button class="tab-button" type="button" data-tab="defaults">Defaults</button>
         <button class="tab-button" type="button" data-tab="how">How To Use</button>
       </nav>
 
       <main>
-        <section class="tab-panel active" id="tab-live">
+        <section class="tab-panel" id="tab-live">
           <div class="work-grid">
             <form class="panel form-panel" id="live-form">
               <div class="panel-heading">
@@ -100,6 +101,24 @@
                     Third
                   </label>
                 </fieldset>
+
+                <div class="live-success-pair">
+                  <label>
+                    Batter Success Rate
+                    <span class="input-with-suffix">
+                      <input id="live-p-batter" type="number" min="0" max="100" step="0.1">
+                      <span>%</span>
+                    </span>
+                  </label>
+
+                  <label>
+                    Catcher Success Rate
+                    <span class="input-with-suffix">
+                      <input id="live-p-catcher" type="number" min="0" max="100" step="0.1">
+                      <span>%</span>
+                    </span>
+                  </label>
+                </div>
 
               </div>
 
@@ -194,24 +213,56 @@
           <div class="panel">
             <div class="panel-heading">
               <div>
-                <h2>Coaching Guide Export</h2>
-                <p>Preview the staff sheet generated from the active model settings.</p>
+                <h2>Create Dugout Guide</h2>
+                <p>Build a printable lookup book that turns the model into in-game dugout instructions for one batter or catcher.</p>
               </div>
               <div class="button-row">
-                <button class="secondary-button" id="refresh-guide" type="button">Refresh</button>
-                <button class="primary-button" id="download-guide" type="button">Download Markdown</button>
+                <button class="secondary-button" id="refresh-guide" type="button" disabled>Refresh Preview</button>
+                <div class="guide-loader" id="guide-loader" role="status" aria-live="polite" hidden>
+                  <span class="guide-loader-spinner" aria-hidden="true"></span>
+                  <span id="guide-loader-text">Calculating guide cells. Please hold.</span>
+                </div>
+                <button class="secondary-button" id="download-csv" type="button">Download CSV</button>
+                <button class="primary-button" id="print-guide" type="button">Print / Save PDF</button>
               </div>
             </div>
+            <form class="guide-controls" id="guide-form">
+              <label>
+                Player / Group Label
+                <input id="guide-label" type="text" placeholder="e.g. Francisco Alvarez, Mets catchers, Road series">
+              </label>
+              <label>
+                Type
+                <select id="guide-role">
+                  <option value="batter">Batter</option>
+                  <option value="catcher">Catcher</option>
+                </select>
+              </label>
+              <label>
+                Score Columns
+                <select id="guide-score-mode">
+                  <option value="standard">Standard: grouped margins</option>
+                  <option value="detailed">Detailed: one-run margins</option>
+                </select>
+              </label>
+              <label class="guide-success-control" data-guide-success-role="batter">
+                Batter Success Rate
+                <span class="input-with-suffix">
+                  <input id="guide-p-batter" type="number" min="0" max="100" step="0.1">
+                  <span>%</span>
+                </span>
+              </label>
+              <label class="guide-success-control" data-guide-success-role="catcher">
+                Catcher Success Rate
+                <span class="input-with-suffix">
+                  <input id="guide-p-catcher" type="number" min="0" max="100" step="0.1">
+                  <span>%</span>
+                </span>
+              </label>
+            </form>
             <div class="guide-layout">
               <section class="guide-preview" aria-label="Coaching guide preview">
                 <div id="guide-preview"></div>
-              </section>
-              <section class="raw-export">
-                <div class="raw-export-heading">
-                  <h3>Markdown Source</h3>
-                  <p>For handoff, edits, or archiving.</p>
-                </div>
-                <textarea id="guide-output" spellcheck="false" aria-label="Generated coaching guide"></textarea>
               </section>
             </div>
           </div>
@@ -255,7 +306,7 @@
             <div class="settings-grid">
               <section class="settings-section">
                 <h3>Expected Success Probability</h3>
-                <p class="settings-help">Estimated chance the challenge is overturned. Default inputs are the public success rates for all catchers and all batters. If the user thinks a specific catcher or batter has more or less projected success, adjust the input.</p>
+                <p class="settings-help">Estimated chance this player's challenge is overturned over time. This is a player or role skill/behavior input, not a pitch-by-pitch location estimate. Default inputs are the public success rates for all batters and all catchers; adjust them when you have a better player-specific read.</p>
                 <label>
                   Batter Expected Success
                   <span class="input-with-suffix">
@@ -272,69 +323,82 @@
                 </label>
               </section>
 
-              <section class="settings-section">
-                <h3>Challenge Cost</h3>
-                <p class="settings-help">How expensive it is to lose a challenge. The 5.5 WP point default is anchored to neutral, middle-game future opportunity samples; inventory factors make the last challenge more costly than the first.</p>
-                <label>
-                  Base Cost, WP Points
-                  <input id="setting-c-base" type="number" min="0" max="30" step="0.1">
+              <section class="settings-section c-section">
+                <h3>Challenge Cost Model</h3>
+                <p class="settings-help">These inputs define <strong>C</strong>, the opportunity cost of spending a challenge.</p>
+                <label class="model-choice">
+                  Challenge Cost Version
+                  <select id="setting-c-model">
+                    <option value="v1">Conservative v1</option>
+                    <option value="depletionV15">Shadow Zone v1.5</option>
+                  </select>
                 </label>
-                <label>
-                  2 Challenges Left Factor
-                  <input id="setting-inv-2" type="number" min="0" max="5" step="0.05">
-                </label>
-                <label>
-                  1 Challenge Left Factor
-                  <input id="setting-inv-1" type="number" min="0" max="5" step="0.05">
-                </label>
-              </section>
-
-              <section class="settings-section">
-                <h3>Remaining Game</h3>
-                <p class="settings-help">These weights scale the opportunity cost of spending a challenge. Early innings are higher because more future high-value challenge chances remain; late innings are lower because unused challenges have less time to matter.</p>
-                <label>
-                  Innings 1-3
-                  <input id="setting-phase-early" type="number" min="0" max="5" step="0.05">
-                </label>
-                <label>
-                  Innings 4-6
-                  <input id="setting-phase-middle" type="number" min="0" max="5" step="0.05">
-                </label>
-                <label>
-                  Inning 7
-                  <input id="setting-phase-seventh" type="number" min="0" max="5" step="0.05">
-                </label>
-                <label>
-                  Inning 8
-                  <input id="setting-phase-eighth" type="number" min="0" max="5" step="0.05">
-                </label>
-                <label>
-                  Inning 9+
-                  <input id="setting-phase-late" type="number" min="0" max="5" step="0.05">
-                </label>
+                <p class="settings-help model-choice-help">Conservative v1 uses the fixed lost-challenge baseline and multipliers below. Shadow Zone v1.5 estimates future Shadow Zone candidates lost, blended future success, future win-probability value, and a 2x premium on the last challenge.</p>
+                <div class="c-subgrid">
+                  <div class="settings-subsection v1-cost-control">
+                    <h4>Base Cost and Inventory</h4>
+                    <p class="settings-help">Conservative v1 controls. The 5.5 WP point default is anchored to neutral, middle-game future opportunity samples; inventory factors make the last challenge more costly than the first.</p>
+                    <label>
+                      Base Cost, WP Points
+                      <input id="setting-c-base" type="number" min="0" max="30" step="0.1">
+                    </label>
+                    <label>
+                      2 Challenges Left Factor
+                      <input id="setting-inv-2" type="number" min="0" max="5" step="0.05">
+                    </label>
+                    <label>
+                      1 Challenge Left Factor
+                      <input id="setting-inv-1" type="number" min="0" max="5" step="0.05">
+                    </label>
+                  </div>
+                  <div class="settings-subsection v1-cost-control">
+                    <h4>Remaining Game</h4>
+                    <p class="settings-help">Conservative v1 controls. These weights scale the opportunity cost of spending a challenge. Early innings are higher because more future high-value challenge chances remain; late innings are lower because unused challenges have less time to matter.</p>
+                    <label>
+                      Innings 1-3
+                      <input id="setting-phase-early" type="number" min="0" max="5" step="0.05">
+                    </label>
+                    <label>
+                      Innings 4-6
+                      <input id="setting-phase-middle" type="number" min="0" max="5" step="0.05">
+                    </label>
+                    <label>
+                      Inning 7
+                      <input id="setting-phase-seventh" type="number" min="0" max="5" step="0.05">
+                    </label>
+                    <label>
+                      Inning 8
+                      <input id="setting-phase-eighth" type="number" min="0" max="5" step="0.05">
+                    </label>
+                    <label>
+                      Inning 9+
+                      <input id="setting-phase-late" type="number" min="0" max="5" step="0.05">
+                    </label>
+                  </div>
+                </div>
               </section>
 
               <section class="settings-section">
                 <h3>Level Thresholds</h3>
-                <p class="settings-help">Rules for upgrading from Closed to Full Count, Deep Count, or Open. Higher values demand stronger evidence.</p>
+                <p class="settings-help">Rules for upgrading from one player instruction to the next. The median expected value minimum means the middle sampled opportunity in that gate must clear this value, so the model is not upgraded by only a few extreme situations. Positive rate means the share of sampled opportunities that must be positive value.</p>
                 <label>
-                  Full Count Median EV Minimum
+                  No-Brainers > Full Count: Median EV Minimum
                   <input id="setting-full-median" type="number" min="-20" max="20" step="0.1">
                 </label>
                 <label>
-                  Deep Count Median EV Minimum
+                  Full Count > Deep Count: Median EV Minimum
                   <input id="setting-deep-median" type="number" min="-20" max="20" step="0.1">
                 </label>
                 <label>
-                  Deep Count Positive Rate
+                  Full Count > Deep Count: Positive Rate
                   <input id="setting-deep-rate" type="number" min="0" max="100" step="1">
                 </label>
                 <label>
-                  Open Median EV Minimum
+                  Deep Count > Aggressive: Median EV Minimum
                   <input id="setting-open-median" type="number" min="-20" max="20" step="0.1">
                 </label>
                 <label>
-                  Open Positive Rate
+                  Deep Count > Aggressive: Positive Rate
                   <input id="setting-open-rate" type="number" min="0" max="100" step="1">
                 </label>
               </section>
@@ -358,47 +422,228 @@
           </form>
         </section>
 
-        <section class="tab-panel" id="tab-method">
+        <section class="tab-panel active" id="tab-intro">
           <div class="panel prose-panel">
-            <h2>What We Did</h2>
-            <p>The decision engine uses expected value: challenge value equals success probability times the win-probability swing of a successful overturn, minus failure probability times the opportunity cost of losing the challenge.</p>
-            <pre><code>Expected Value = p * V - (1 - p) * C</code></pre>
-            <p><strong>p</strong> is expected challenge success probability. The v1 defaults are 47% for batters and 59% for catchers, with a manual override for team or player reads.</p>
-            <p><strong>V</strong> is the win probability swing between the umpire's call and the corrected call. The app asks Savant's count-aware Game Strategy Explorer endpoint for state values, so inning, half, score, outs, runners, and count all matter.</p>
-            <p><strong>C</strong> is the marginal cost of burning a challenge. The v1 proxy is 5.5 win probability points times inventory, remaining-game, and current-WP multipliers.</p>
+            <h2>What is this?</h2>
+            <p>A tool to help teams make more strategic ABS challenge decisions without cognitively overloading players.</p>
+            <h3>Why do we need it?</h3>
+            <p>ABS challenge strategy is not about being certain you are right. Challenges are two-second decisions about inches at high speed. Uncertainty is built in. The goal is knowing when that risk is worth taking.</p>
+            <p>There is already substantial research on ABS challenge value, break-even points, and optimal challenge strategy. But a batter or catcher cannot turn an expected-value table into a real-time decision between pitches.</p>
+            <h3>How will we do that?</h3>
+            <p>By turning that research into actionable guidance:</p>
+            <ul>
+              <li><strong>Four simple challenge modes</strong></li>
+              <li><strong>Exportable/printable guide to use in the dugout.</strong></li>
+            </ul>
+            <p>Before each plate appearance, coaches use the guide to set the mode. Players do not need to calculate expected value in real time; they only need to know when the situation calls for challenging a questionable pitch.</p>
+            <h3>The Four Challenge Modes</h3>
             <div class="method-grid">
-              <div class="method-box">
-                <h3>Closed</h3>
-                <p>Fallback when Full Count does not clear. Only unmistakable misses.</p>
+              <div class="method-cluster-label">Count-gated modes</div>
+              <div class="method-box no-brainers">
+                <h3>No-Brainers</h3>
+                <p>Only unmistakable misses.</p>
               </div>
-              <div class="method-box">
+              <div class="method-box full-count">
                 <h3>Full Count</h3>
-                <p>Clears when median expected value of 3-2 opportunities is at least zero.</p>
+                <p>Only 3-2 calls.</p>
               </div>
-              <div class="method-box">
+              <div class="method-box deep-count">
                 <h3>Deep Count</h3>
-                <p>Clears when full-count plus two-strike or three-ball situations have nonnegative median expected value and at least a 55% positive rate.</p>
+                <p>Two strikes or three balls.</p>
               </div>
-              <div class="method-box">
-                <h3>Open</h3>
-                <p>Clears when all counts have nonnegative median expected value and at least a 65% positive rate.</p>
+              <div class="method-box aggressive">
+                <h3>Aggressive</h3>
+                <p>Any close pitch.</p>
               </div>
             </div>
-            <p>The public endpoint is useful for a prototype, but a team-grade version should cache responses and let clubs plug in their own win expectancy model.</p>
+            <h3>How The Modes Are Derived</h3>
+            <p>The model is built around win expectancy. ABS challenges are about winning this game, so the same missed call can matter more or less depending on the inning, score, outs, runners, count, and challenge inventory.</p>
+            <p>The inputs can change, this prototype even includes two different ways to estimate challenge cost, but the load-bearing question does not: is the upside of a successful challenge worth the downside of losing one? As expressed in the core equation:</p>
+            <pre><code>Expected Value = p * V - (1 - p) * C</code></pre>
+            <p><strong>p</strong> is expected success rate of the challenging player. It is not whether the particular pitch is overturnable; we cannot expect players to calculate that in real time. It is the general challenging ability of the player. This tool embraces the ambiguity that players face.</p>
+            <p>The v1 defaults are the public league-wide averages: 47% for batters and 59% for catchers. If the user believes a particular player is a different p, those are adjustable in Model Settings.</p>
+            <p><strong>V</strong> is the win probability swing between the umpire's call and the corrected call. The app uses Savant's count-aware Game Strategy Explorer endpoint for state values. Inning, half, score, outs, runners, and count all matter.</p>
+            <p><strong>C</strong> is the opportunity cost of burning a challenge. The default v1 proxy is 5.5 win probability points times inventory, remaining-game, and current-WP multipliers. Cost model v1.5, "Shadow Zone," can also be selected in Model Settings. This estimates the volume of remaining Shadow Zone pitches, their average win probability value, and the expected chance they are overturned.</p>
+            <p>For future opportunity supply, the default pitch-quality candidate is a Shadow Zone pitch: a taken ball or strike roughly one baseball's width from the strike-zone edge, with the call going against the team. That keeps pitch closeness separate from game leverage.</p>
+            <h3>Built To Extend</h3>
+            <p>The public version uses Baseball Savant as the win-probability source and exposes the main assumptions in Model Settings. The architecture is meant to be plug-in friendly: a team can swap in different success rates, challenge-cost assumptions, thresholds, or a private win-probability model without changing the player-facing challenge modes.</p>
+          </div>
+        </section>
+
+        <section class="tab-panel" id="tab-defaults">
+          <div class="panel prose-panel">
+            <h2>Default Derivations</h2>
+            <p>The public model ships with reasonable defaults, not universal truths. They are meant to make the tool usable before a team plugs in its own player reads, challenge data, or win expectancy model.</p>
+
+            <div class="defaults-grid">
+              <section class="defaults-card">
+                <h3>Success Probability</h3>
+                <p><strong>p</strong> is the challenging player's expected success rate over time. It is not an estimate of whether a particular pitch is overturnable; that pitch-by-pitch calculation is exactly what the player cannot do in real time.</p>
+                <p>The default public inputs are 47% for batters and 59% for catchers. These are behavioral averages, so teams should adjust them when they have a better read on a specific batter, catcher, or staff.</p>
+              </section>
+
+              <section class="defaults-card">
+                <h3>Win Expectancy Value</h3>
+                <p><strong>V</strong> is the win probability swing between the umpire's call and the corrected call.</p>
+                <p>The live model uses Baseball Savant's count-aware Game Strategy Explorer as the public win expectancy source. That means inning, half, score, outs, runners, and count all matter.</p>
+              </section>
+
+              <section class="defaults-card">
+                <h3>Pitch-Quality Candidate Filter</h3>
+                <p>The default future-opportunity filter is the Statcast Shadow Zone: roughly one baseball's width inside or outside the strike-zone edge.</p>
+                <p>For batters, that means called strikes in the Shadow Zone. For catchers, that means called balls in the Shadow Zone. Game situation is handled separately by win expectancy.</p>
+              </section>
+            </div>
+
+            <h3>Conservative v1 Defaults</h3>
+            <p>Conservative v1 is a deliberately simple opportunity-cost proxy. It starts with a lost-challenge baseline, then scales it by challenge inventory, remaining game, and current win probability.</p>
+            <pre><code>C = 5.5 WP points x inventory factor x remaining game factor x current WP factor</code></pre>
+            <p>The 5.5 win-probability point baseline is anchored around neutral, middle-game future challenge opportunities. The sampler looked at ball-versus-strike win expectancy swings across representative states, then used plausible future challenge-worthy spots rather than average pitches.</p>
+
+            <div class="defaults-table-grid">
+              <section>
+                <h3>v1 Inventory Factors</h3>
+                <div class="table-wrap">
+                  <table>
+                    <thead>
+                      <tr><th>Challenges Left</th><th>Factor</th><th>Why</th></tr>
+                    </thead>
+                    <tbody>
+                      <tr><td>2</td><td>1.35</td><td>Losing the first challenge still burns meaningful future optionality.</td></tr>
+                      <tr><td>1</td><td>3.00</td><td>Losing the last challenge removes access to the best future spot.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              <section>
+                <h3>v1 Remaining Game Factors</h3>
+                <div class="table-wrap">
+                  <table>
+                    <thead>
+                      <tr><th>Game Phase</th><th>Factor</th><th>Why</th></tr>
+                    </thead>
+                    <tbody>
+                      <tr><td>Innings 1-3</td><td>1.25</td><td>Many future chances remain.</td></tr>
+                      <tr><td>Innings 4-6</td><td>1.00</td><td>Neutral baseline.</td></tr>
+                      <tr><td>Inning 7</td><td>0.85</td><td>Future chances are shrinking.</td></tr>
+                      <tr><td>Inning 8</td><td>0.70</td><td>Fewer chances remain.</td></tr>
+                      <tr><td>Inning 9+</td><td>0.50</td><td>Unused challenges have less time to matter.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            </div>
+
+            <h3>v1 Current Win Probability Factor</h3>
+            <p>The model uses current team win probability instead of raw score margin because a five-run game is not always the same. Bases loaded with no outs is different from bases empty with two outs.</p>
+            <p>The curve is intentionally asymmetric. Preserving a challenge matters somewhat more when protecting a competitive or favorable position than when trying to climb back from a poor one, because a trailing team may never reach the future high-value spot.</p>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr><th>Team Win Probability</th><th>Factor</th><th>Interpretation</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>0-5%</td><td>0.03</td><td>Game is nearly gone; do not hoard.</td></tr>
+                  <tr><td>5-10%</td><td>0.08</td><td>Very low future challenge value.</td></tr>
+                  <tr><td>10-20%</td><td>0.20</td><td>Spend resources to get back in the game.</td></tr>
+                  <tr><td>20-30%</td><td>0.45</td><td>Still behind; future leverage may not arrive.</td></tr>
+                  <tr><td>30-40%</td><td>0.75</td><td>Behind but meaningfully alive.</td></tr>
+                  <tr><td>40-50%</td><td>0.95</td><td>Close game; preserve value.</td></tr>
+                  <tr><td>Exactly 50%</td><td>1.00</td><td>Neutral anchor.</td></tr>
+                  <tr><td>50-60%</td><td>0.95</td><td>Close game; preserve value.</td></tr>
+                  <tr><td>60-70%</td><td>0.90</td><td>Favorable but still losable.</td></tr>
+                  <tr><td>70-80%</td><td>0.75</td><td>Protecting a lead still matters.</td></tr>
+                  <tr><td>80-90%</td><td>0.40</td><td>Strong favorite; future challenge value drops.</td></tr>
+                  <tr><td>90-95%</td><td>0.15</td><td>Very low future challenge value.</td></tr>
+                  <tr><td>95-100%</td><td>0.05</td><td>Game is nearly secured.</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <h3>Shadow Zone v1.5 Defaults</h3>
+            <p>Shadow Zone v1.5 estimates the cost of losing a challenge more directly. Instead of starting from a fixed 5.5-point baseline, it asks how many future pitch-quality candidates are likely to remain and what those chances are worth.</p>
+            <pre><code>C = expected future Shadow Zone candidates lost
+    x blended future success rate
+    x average future win-probability value
+    x inventory premium</code></pre>
+            <div class="defaults-table-grid">
+              <section>
+                <h3>v1.5 Candidate Supply</h3>
+                <div class="table-wrap">
+                  <table>
+                    <thead>
+                      <tr><th>Side</th><th>Default Candidate Rate</th><th>Meaning</th></tr>
+                    </thead>
+                    <tbody>
+                      <tr><td>Batter</td><td>0.424 per team out</td><td>Expected future batter-side Shadow Zone challenge candidates.</td></tr>
+                      <tr><td>Catcher</td><td>0.455 per team out</td><td>Expected future catcher-side Shadow Zone challenge candidates.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+              <section>
+                <h3>v1.5 Inventory Premium</h3>
+                <div class="table-wrap">
+                  <table>
+                    <thead>
+                      <tr><th>Challenges Left</th><th>Premium</th><th>Meaning</th></tr>
+                    </thead>
+                    <tbody>
+                      <tr><td>2</td><td>1.00x</td><td>Losing one challenge still leaves access to a later spot.</td></tr>
+                      <tr><td>1</td><td>2.00x</td><td>Losing the last challenge removes all future optionality.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            </div>
+            <p>v1.5 uses a blended future success rate because the rest of the game can include both batter-side and catcher-side opportunities. A specific player success override affects the current recommendation; the future lineup component stays anchored to the broader public batter default unless a team replaces it.</p>
+
+            <h3>Mode Thresholds</h3>
+            <p>The model assigns the most aggressive mode that clears its evidence bar. Broader modes require more proof because they authorize more potential challenges.</p>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr><th>Mode</th><th>Default Rule</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>No-Brainers</td><td>Fallback when Full Count does not clear.</td></tr>
+                  <tr><td>Full Count</td><td>Median expected value of full-count opportunities is at least zero.</td></tr>
+                  <tr><td>Deep Count</td><td>Median expected value is at least zero and at least 55% of sampled opportunities are positive value.</td></tr>
+                  <tr><td>Aggressive</td><td>Median expected value is at least zero and at least 65% of sampled opportunities are positive value.</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <h3>Developer Notes</h3>
+            <p>A private win-expectancy model can replace the public Savant source as long as it returns count-level win probabilities for the same game state: inning, half, score, outs, runners, and count. The app then keeps using the same expected-value equation and mode thresholds.</p>
+            <p>For the printable guide, the fastest path is to precompute representative state tables and load them the same way this prototype loads <code>app/data/guide-winexp.json</code>. The live tab can call the same model directly if a team wants exact, internal win expectancy instead of the public endpoint.</p>
           </div>
         </section>
 
         <section class="tab-panel" id="tab-how">
           <div class="panel prose-panel">
             <h2>How To Use</h2>
-            <p>Before a plate appearance, set the game state, the challenge side, and the number of challenges remaining. The recommendation is the player-facing gate for that plate appearance.</p>
-            <ol>
-              <li>My Team is the side receiving the recommendation. For catcher recommendations, My Team is the fielding team.</li>
-              <li>Set expected challenge success rates in Model Settings when the staff has a better team or player read.</li>
-              <li>Give hitters the simple gate only. Catchers can receive the count detail table when the staff wants more precision.</li>
-              <li>Use Guide Export after settings changes so the staff handout matches the model.</li>
-            </ol>
-            <p>Open does not mean challenge randomly. It means the count restriction is open if the player has a strong read that the call missed.</p>
+            <div class="use-case-grid">
+              <section class="use-case-card">
+                <h3>Live Recommendation</h3>
+                <p>Use this when someone can enter the exact game state and get the current mode.</p>
+                <ol>
+                  <li>Set the challenge side, score, inning, outs, runners, and challenges left.</li>
+                  <li>My Team is the side receiving the recommendation. For catcher recommendations, My Team is the fielding team.</li>
+                  <li>Give the player the mode for that plate appearance.</li>
+                </ol>
+              </section>
+              <section class="use-case-card">
+                <h3>Create A Dugout Guide</h3>
+                <p>Use this before the game when the staff needs a printed lookup book instead of an app in the dugout.</p>
+                <ol>
+                  <li>Choose Batter or Catcher, add a player or group label, and set the expected success rate.</li>
+                  <li>Print or save the guide as a PDF. CSV is available for Excel-style review.</li>
+                  <li>In game, look up challenges left, inning half, score column, outs, and runners, then give the player the mode.</li>
+                </ol>
+              </section>
+            </div>
           </div>
         </section>
       </main>

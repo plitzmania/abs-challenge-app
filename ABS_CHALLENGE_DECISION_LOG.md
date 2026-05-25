@@ -58,10 +58,10 @@ The assigned level controls when the player is allowed to act on that belief.
 
 The likely player-facing levels are:
 
-1. Closed: do not challenge unless the miss is unmistakable.
+1. No-Brainers: do not challenge unless the miss is unmistakable.
 2. Full Count: challenge only on 3-2.
 3. Deep Count: challenge on any two-strike or three-ball count.
-4. Open: challenge any taken pitch the player strongly believes was missed.
+4. Aggressive: challenge any close pitch.
 
 Reason for replacing "End PA" with "Full Count": End PA is too broad for batters because called strike three at 0-2 or 1-2 is much less valuable than a full-count call. Full count is both mathematically cleaner and cognitively simple for players.
 
@@ -123,7 +123,7 @@ The first version now treats the last challenge as a little more than 2x as expe
 
 Rationale: challenge opportunities appear right-skewed. Most pitch calls are modest, but rare full-count or game-swinging calls can be very large. The last challenge preserves access to the best future opportunity; the second challenge mostly preserves access to the second-best future opportunity. That supports making the 1-to-0 cost materially larger than the 2-to-1 cost. This is a v1 heuristic, not a solved dynamic program.
 
-Sanity-check recalibration: the original `2 challenges left = 0.60` setting made a top-1, 0-0 score, 0 outs, bases empty, catcher recommendation clear `Full Count`. That was too loose for the first batter of the game. Raising the two-challenge factor to `1.35` makes that state `Closed` while preserving late-game aggressiveness in higher-value states.
+Sanity-check recalibration: the original `2 challenges left = 0.60` setting made a top-1, 0-0 score, 0 outs, bases empty, catcher recommendation clear `Full Count`. That was too loose for the first batter of the game. Raising the two-challenge factor to `1.35` makes that state `No-Brainers` while preserving late-game aggressiveness in higher-value states.
 
 #### remaining_game_factor
 
@@ -477,9 +477,10 @@ Hypothesis: inside/outside challenges may be more reliable than high/low challen
 
 ```text
 Umpire-specific tendencies
+Umpire-specific challenge success rates
 ```
 
-Hypothesis: umpire error profile and/or player trust in particular umpires may affect challenge probability and success. A richer model could include umpire-specific miss tendencies, zone shape, and challenge response patterns.
+Hypothesis: umpire error profile and/or player trust in particular umpires may affect challenge probability and success. A richer model could include umpire-specific miss tendencies, zone shape, challenge response patterns, and batter/catcher success rates against particular umpires.
 
 ## Team-Adjustable Inputs
 
@@ -599,10 +600,10 @@ Leverage-index-informed curve
 Default candidates:
 
 ```text
-Closed
+No-Brainers
 Full Count
 Deep Count
-Open
+Aggressive
 ```
 
 Team overrides:
@@ -726,10 +727,10 @@ Early interpretation: the math may support a real distinction between batter and
 Working levels:
 
 ```text
-Closed
+No-Brainers
 Full Count
 Deep Count
-Open
+Aggressive
 ```
 
 Thresholds:
@@ -741,14 +742,14 @@ Deep Count clears if:
   median expected value of full-count + deep-count opportunities is at least zero
   and at least 55% of those opportunities are positive value.
 
-Open clears if:
+Aggressive clears if:
   median expected value of all opportunities is at least zero
   and at least 65% of all opportunities are positive value.
 
-Closed is the fallback if Full Count does not clear.
+No-Brainers is the fallback if Full Count does not clear.
 ```
 
-Reasoning: broader permission levels need more evidence. Full Count is narrow, so break-even median EV is sufficient. Deep Count and Open allow many more challenges, so they require both non-negative median EV and a positive-rate cushion.
+Reasoning: broader permission levels need more evidence. Full Count is narrow, so break-even median EV is sufficient. Deep Count and Aggressive allow many more challenges, so they require both non-negative median EV and a positive-rate cushion.
 
 ### Recommendation Table Implementation
 
@@ -775,8 +776,8 @@ recommendation
 full-count median EV
 deep-count positive rate
 deep-count median EV
-open positive rate
-open median EV
+aggressive positive rate
+aggressive median EV
 ```
 
 Important implementation note: raw recommendation rows can be noisy in sparse win-probability bands, especially exact 50% rows or unusual state combinations. Final coach-facing tables should apply smoothing, minimum sample thresholds, and/or coarser WP bands before being treated as guidance.
@@ -1076,10 +1077,10 @@ runners
 The returned value is still one of the player-facing levels:
 
 ```text
-Closed
+No-Brainers
 Full Count
 Deep Count
-Open
+Aggressive
 ```
 
 Rationale: this preserves the simple player instruction while giving the staff a thick, navigable chart for live dugout decisions. It also avoids asking coaches to infer win probability from score/base-out state under time pressure.
@@ -1097,3 +1098,498 @@ success odds ratio / challenge cost ratio
 ```
 
 Large positive changes can upgrade a cell by one or two levels; large conservative changes can downgrade by one or two levels. This keeps the book stable enough for coaching use while making the exported guide reflect the assumptions selected in Model Settings.
+
+## Player-Facing Rename
+
+Decision: rename the most conservative player-facing mode from `Closed` to `No-Brainers`.
+
+Rationale: `Closed` describes the model's internal posture, but `No-Brainers` is clearer dugout language. It tells the player the same thing operationally: only challenge unmistakable misses.
+
+## Guide Export Workflow
+
+Decision: the Guide Export tab now creates one role-specific dugout guide at a time.
+
+Current guide inputs:
+
+```text
+freeform player/group label
+Batter or Catcher
+batter success probability
+catcher success probability
+```
+
+Rationale: a printed binder for both batters and catchers is too large for fast dugout use. Selecting `Batter` or `Catcher` cuts the lookup book in half while preserving the same page path: challenges left, inning half, score column, outs, and runners.
+
+Export decision: prioritize `Print / Save PDF` for the dugout use case, because coaches need a physical or printable guide rather than an app. Also provide CSV so analysts can open the same lookup table in Excel.
+
+## Defaults Explanation Tab
+
+Decision: add a dedicated `Defaults` tab explaining how the public defaults were derived.
+
+Contents:
+
+```text
+p public defaults: 47% batter, 59% catcher
+V source: Baseball Savant count-aware win expectancy
+C proxy: 5.5 WP points x inventory factor x remaining game factor x current WP factor
+inventory factors: 1.35 with two challenges left, 3.00 with one challenge left
+remaining-game factors: 1.25 early down to 0.50 in the ninth or later
+current-WP factor curve, including intentional asymmetry
+mode assignment thresholds
+```
+
+Rationale: Model Settings exposes adjustable numbers, but users need to know which inputs are empirical public defaults, which are v1 heuristics, and why the model uses win expectancy rather than run value.
+
+## Public Research Recheck
+
+Date: 2026-05-23
+
+Decision: keep the current v1 defaults visible for now, but flag `C` as the most likely next recalibration target.
+
+Public findings:
+
+```text
+Baseball Savant ABS Dashboard: current public role split supports the p defaults directionally.
+Current public dashboard shows batters around 47% and fielders around 58%; other public reporting has catchers/fielders around 59%.
+
+Tom Tango ABS cost-benefit work: confirms the core framing that an ABS challenge has a direct benefit from flipping the call and an indirect cost from using up challenge inventory.
+
+TapToChallenge: provides the strongest public derivation for challenge-inventory cost. It models opportunity cost as expected missed future challenge opportunities times future success rate times average value of a successful future overturn. It also extends that idea from run expectancy to win probability added.
+```
+
+Implication:
+
+```text
+V is in good shape for v1 as a win-expectancy state comparison.
+p is in good shape for v1 as public role-level defaults with player/team overrides.
+C is directionally right but still heuristic. A better v2 would replace the fixed 5.5 pp baseline and multipliers with a depletion model:
+
+C = expected_missed_future_challenge_opportunities
+    * future_success_probability
+    * average_future_overturn_WP_value
+```
+
+Open modeling question: whether to preserve the current conservative `C` for coaching simplicity or switch to the depletion-derived `C`, which would likely make the model materially more aggressive in many states.
+
+Sources checked:
+
+```text
+https://baseballsavant.mlb.com/abs
+https://tangotiger.com/index.php/site/comments/cost-benefit-analysis-of-making-an-abs-challenge
+https://www.taptochallenge.com/blog/understanding-the-run-value-of-abs-challenges
+https://www.taptochallenge.com/blog/understanding-the-win-value-of-abs-challenges
+https://www.mlb.com/news/abs-challenge-system-results-what-we-have-learned
+https://theanalyst.com/articles/abs-automated-ball-strike-challenge-system-growing-in-2026-mlb-season
+```
+
+## Offline Depletion-C Comparison
+
+Date: 2026-05-23
+
+Decision: add an offline comparison script, but do not change the live app defaults yet.
+
+Script:
+
+```text
+node scripts/compare_depletion_c.mjs
+```
+
+Depletion-C formula tested:
+
+```text
+C = extra_future_challenge_opportunities_lost
+    * future_challenge_success_rate
+    * average_future_overturn_WP
+```
+
+Default offline assumptions:
+
+```text
+challenge opportunities per team out = 0.042
+future challenge success rate = 51.7%
+average future overturn WP = 1.87 pp inside two runs, 0.24 pp in blowouts, interpolated between
+```
+
+Representative-grid result:
+
+```text
+old C median / p75 / p90 = 3.53 pp / 7.84 pp / 14.85 pp
+depletion C median / p75 / p90 = 0.25 pp / 0.58 pp / 0.89 pp
+recommendation changed = 67.4% of scenarios
+all changes were more aggressive
+```
+
+Close-game/grid result:
+
+```text
+old C median / p75 / p90 = 6.96 pp / 10.52 pp / 15.68 pp
+depletion C median / p75 / p90 = 0.38 pp / 0.80 pp / 1.13 pp
+recommendation changed = 77.5% of scenarios
+all changes were more aggressive
+```
+
+Neutral-WP slice:
+
+```text
+start team WP = 40-60%
+old C median / p75 / p90 = 8.82 pp / 15.68 pp / 19.59 pp
+depletion C median / p75 / p90 = 0.52 pp / 0.91 pp / 1.28 pp
+recommendation changed = 89.2% of scenarios
+all changes were more aggressive
+```
+
+First-batter sanity check:
+
+```text
+Top 1, tie game, 0 outs, bases empty
+old C with 2 challenges left = 8.82 pp
+depletion C with 2 challenges left = 0.60 pp
+old recommendation = No-Brainers
+depletion recommendation = Aggressive
+```
+
+Interpretation: the original v1 `C` heavily overprices challenge inventory because it values a plausible future challenge-worthy pitch without fully discounting by the probability that the team will actually run out of challenges before seeing that future spot. Depletion-C is theoretically cleaner, but adopting it directly would require recalibrating the player-facing thresholds because it makes almost every sampled state more aggressive.
+
+## Pitch-Quality Candidate Filter
+
+Date: 2026-05-23
+
+Decision: use Statcast's Shadow Zone concept as the v1 default for defining future pitch-quality candidates inside `C`.
+
+Definition:
+
+```text
+Pitch-quality candidate = taken ball/strike
+  + call went against the team
+  + pitch is in the Shadow Zone
+```
+
+Role split:
+
+```text
+Batter candidate = called strike in the Shadow Zone
+Catcher candidate = called ball in the Shadow Zone
+```
+
+Rationale: this separates pitch quality from game situation. A pitch can be a good candidate on location/call quality without necessarily being worth a challenge in the current inning, score, base-out state, count, and inventory. The game situation belongs in `V` and `C`; the pitch-quality filter should only answer whether the pitch is close enough to be a plausible future challenge candidate.
+
+Shadow Zone anchor: MLB/Statcast defines the Shadow Zone as one baseball's width inside and outside the strike-zone edge. A baseball is roughly 2.9 inches wide, so the modeling proxy is `abs(edge_distance) <= 2.9 inches`.
+
+Sensitivity check using Baseball Savant Statcast pitch data, 2026 regular season through 2026-05-22, pulled day-by-day to avoid the 25,000-row export cap:
+
+| Group | Sample | <=1 inch | <=2 inches | <=2.9 inches / Shadow Zone | <=3 inches | <=4 inches | <=6 inches |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| All called balls/strikes | 113,683 | 11.3% | 22.4% | 31.9% | 32.9% | 42.9% | 60.3% |
+| Batter candidates: called strikes | 36,945 | 17.4% | 34.1% | 47.4% | 48.8% | 61.3% | 81.7% |
+| Catcher candidates: called balls | 76,738 | 8.4% | 16.8% | 24.5% | 25.3% | 34.0% | 50.0% |
+
+Supply sensitivity versus Shadow Zone:
+
+| Band | Batter candidate supply | Catcher candidate supply |
+|---|---:|---:|
+| <=2 inches | 0.72x | 0.69x |
+| <=2.9 inches / Shadow Zone | 1.00x | 1.00x |
+| <=3 inches | 1.03x | 1.04x |
+| <=4 inches | 1.29x | 1.39x |
+| <=6 inches | 1.72x | 2.04x |
+
+Interpretation: `<=2 inches` is meaningfully stricter, `<=4 inches` is meaningfully looser, and `<=6 inches` is too broad for a v1 default. `<=2.9 inches` and `<=3 inches` are practically identical, so Shadow Zone is the cleaner baseball-native label.
+
+Caveat: the sensitivity test reconstructs edge distance from Statcast `plate_x`, `plate_z`, `sz_top`, and `sz_bot`, expanded by baseball radius. It is a close public proxy for Shadow Zone, not a proprietary ABS decision feed.
+
+## V1.5 Challenge-Cost Model
+
+Date: 2026-05-23
+
+Decision: implement v1.5 as a side-by-side challenge-cost model, but do not make it the public default yet.
+
+Formula:
+
+```text
+C = expected future Shadow Zone candidates lost
+    * expected future success rate
+    * average future win-probability value
+```
+
+Implementation:
+
+```text
+expected future Shadow Zone candidates = remaining regulation outs * 0.5 * role candidate rate
+
+candidate rate per team out:
+  batter = 0.424
+  catcher = 0.455
+
+future success rate:
+  batter = model batter p
+  catcher = model catcher p
+```
+
+The `0.5` future-out share is the v1.5 simplification that converts total game outs remaining into approximate future opportunities for the same team in the same role. A later version should simulate actual batting/fielding turns more exactly.
+
+Average future win-probability value is derived from sampled Savant ball-vs-strike `V` values across the representative comparison grid:
+
+| Current Team WP | Average Future WP Value |
+|---|---:|
+| 0-10% | 0.80 pp |
+| 10-30% | 2.00 pp |
+| 30-70% | 2.80 pp |
+| 70-90% | 2.00 pp |
+| 90-100% | 0.80 pp |
+
+Side-by-side comparison script:
+
+```text
+node scripts/compare_depletion_c.mjs
+```
+
+Representative-grid comparison:
+
+```text
+Scenarios: 5,832
+Pitch rows: 69,452
+
+v1 C median / p75 / p90: 4.94 pp / 8.82 pp / 15.47 pp
+v1.5 C median / p75 / p90: 1.73 pp / 2.48 pp / 3.57 pp
+v1.5-to-v1 C ratio median / p75 / p90: 0.30 / 0.54 / 0.96
+
+recommendation changed: 65.3%
+more aggressive: 62.9%
+less aggressive: 2.5%
+```
+
+Neutral-WP slice:
+
+```text
+Start team WP = 40-60%
+Scenarios: 1,124
+
+v1 C median / p75 / p90: 8.82 pp / 15.68 pp / 19.59 pp
+v1.5 C median / p75 / p90: 2.44 pp / 3.60 pp / 3.92 pp
+v1.5-to-v1 C ratio median / p75 / p90: 0.22 / 0.28 / 0.41
+
+recommendation changed: 85.8%
+all changes were more aggressive
+```
+
+First-batter sanity check using the full-grid future-WP bucket values:
+
+```text
+Top 1, tie game, 0 outs, bases empty, catcher, 2 challenges left
+
+v1 C: 8.82 pp
+v1.5 C: 3.87 pp
+v1 recommendation: No-Brainers
+v1.5 recommendation: Full Count
+```
+
+Interpretation: v1.5 is much less conservative because it discounts future value by the probability that a failed challenge actually causes the team to miss future Shadow Zone opportunities. It still preserves a real challenge cost, especially around 50/50 games, but the old v1 cost was pricing challenge inventory as if every current spend necessarily sacrificed a high-value future spot.
+
+## V1.5 Inventory Premium
+
+Date: 2026-05-23
+
+Decision: add an Oyster-style inventory premium to v1.5:
+
+```text
+2 challenges left: 1.00x
+1 challenge left: 2.00x
+```
+
+Rationale: Oyster's public break-even table implies that the last challenge costs about 2x the cost of spending one of two challenges. For example, in a tied top-1, 0-out, bases-empty, 3-2 count, Oyster shows:
+
+```text
+2 challenges left break-even: 16.1%
+1 challenge left break-even: 27.7%
+implied cost ratio: about 2.0x
+```
+
+This premium keeps the depletion framework but restores explicit option value for the last challenge.
+
+Post-premium first-batter sanity check:
+
+```text
+Top 1, tie game, 0 outs, bases empty, catcher
+
+2 challenges left:
+  C = 3.87 pp
+  full-count required success = 40.0%
+  recommendation = Full Count
+
+1 challenge left:
+  C = 8.01 pp
+  full-count required success = 58.0%
+  recommendation = Full Count
+```
+
+The one-challenge full-count recommendation barely clears at the 59% catcher default, which is directionally consistent with Oyster still treating full-count challenges as strongly justifiable.
+
+Representative-grid comparison after the premium:
+
+```text
+v1 C median / p75 / p90: 4.94 pp / 8.82 pp / 15.47 pp
+v1.5 C median / p75 / p90: 2.32 pp / 3.86 pp / 5.64 pp
+recommendation changed: 57.3%
+more aggressive: 50.7%
+less aggressive: 6.6%
+```
+
+Neutral-WP slice after the premium:
+
+```text
+Start team WP = 40-60%
+v1 C median / p75 / p90: 8.82 pp / 15.68 pp / 19.59 pp
+v1.5 C median / p75 / p90: 3.66 pp / 4.95 pp / 7.85 pp
+recommendation changed: 77.3%
+all changes were more aggressive
+```
+
+## Oyster Comparison
+
+Date: 2026-05-24
+
+Decision: add a repeatable Oyster comparison script:
+
+```text
+node scripts/compare_oyster.mjs
+```
+
+Purpose: compare our break-even thresholds against Oyster's public Challenge Break-Evens table by matching inning, top/bottom, score bucket, runners, outs, count, and challenges remaining.
+
+Method:
+
+```text
+Oyster break-even = public Oyster threshold from /api/challenge-data
+Our break-even = required p = C / (V + C)
+
+Compare:
+  v1 conservative multiplier model
+  v1.5 Shadow Zone depletion model with 2x last-challenge premium
+```
+
+Matched rows:
+
+```text
+Oyster rows loaded: 107,712
+Matched model rows: 209,386
+Savant state-table requests: 866
+Skipped invalid states: 2,880
+Skipped no model row: 3,158
+```
+
+Overall comparison:
+
+| Model | Oyster clears default p | Model clears default p | Agreement | Bias vs Oyster | Mean absolute gap |
+|---|---:|---:|---:|---:|---:|
+| v1 | 53.8% | 30.9% | 71.0% | +15.4 pp | 19.3 pp |
+| v1.5 | 53.8% | 44.1% | 79.1% | +6.1 pp | 14.6 pp |
+
+Interpretation: v1.5 is substantially closer to Oyster than v1, but still generally more conservative. Positive bias means our break-even threshold is higher than Oyster's.
+
+V1.5 breakdown:
+
+| Split | Agreement | Bias vs Oyster | Mean absolute gap |
+|---|---:|---:|---:|
+| Batter | 80.4% | +2.1 pp | 13.8 pp |
+| Catcher | 77.7% | +10.2 pp | 15.5 pp |
+| 2 challenges left | 81.2% | +2.2 pp | 13.5 pp |
+| 1 challenge left | 77.0% | +10.0 pp | 15.7 pp |
+| Aggressive counts | 81.9% | +0.3 pp | 11.8 pp |
+| Deep Count | 73.7% | +9.8 pp | 16.6 pp |
+| Full Count | 89.2% | +21.9 pp | 22.1 pp |
+
+First-batter full-count sanity check:
+
+```text
+Top 1, tied, 0 outs, bases empty, 3-2
+
+Batter, 2 left:   Oyster 16.1%, v1 60.3%, v1.5 29.6%
+Batter, 1 left:   Oyster 27.7%, v1 77.2%, v1.5 46.1%
+Catcher, 2 left:  Oyster 16.1%, v1 60.3%, v1.5 40.0%
+Catcher, 1 left:  Oyster 27.7%, v1 77.2%, v1.5 58.0%
+```
+
+Interpretation: Oyster is extremely aggressive on full-count challenges. Even after the 2x last-challenge premium, v1.5 remains much more conservative than Oyster on full counts. This suggests our next calibration question is not whether v1.5 is too aggressive; against Oyster, it is still cautious, especially for catchers and one-challenge states.
+
+Caveat: Oyster's public explainer appears to frame break-even in run-value terms with opportunity-cost adjustments, while our model is win-expectancy based. The comparison is useful as a public benchmark, not a definitive truth table.
+
+## 2026-05-24 - V1.5 UI selector
+
+Decision: make the challenge-cost model selectable in Model Settings.
+
+Default remains `Conservative v1`. Teams can switch to `Shadow Zone v1.5` for the depletion model:
+
+```text
+C = expected future Shadow Zone candidates lost
+    x blended future success rate
+    x average future win-probability value
+    x inventory premium
+```
+
+Implementation note: Live Recommendation uses exact Savant state rows when available. Guide Export uses the same selected cost model and success settings, but it approximates each printed binder cell from inning/score/base-out bands rather than exact game states.
+
+## 2026-05-24 - V1.5 future success blend
+
+Decision: v1.5 no longer uses the current player success input as the whole future-success term inside `C`.
+
+Rationale: future challenge inventory belongs to the team, not only the player currently making the decision. For future opportunities:
+
+```text
+batter-side future success = broad hitter baseline
+catcher-side future success = specific catcher read when supplied
+future success blend = weighted by batter/catcher Shadow Zone candidate supply
+```
+
+The current plate appearance still uses the current role's `p`. This prevents a low catcher success input from making the current challenge less attractive while also discounting future inventory so much that the guide stays aggressive. It also prevents a one-batter override from implying the whole future lineup has the same challenge skill.
+
+## 2026-05-24 - Guide lookup uses EV rows instead of level shortcuts
+
+Decision: replace the guide lookup-book shortcut with an approximate expected-value row calculation for every printed cell.
+
+Old guide path:
+
+```text
+base level by role/inventory
+  + inning/score/base/outs modifiers
+  + broad settings shift
+```
+
+Problem: that shortcut could disagree with the live model, including cases where `1 challenge left` printed more aggressively than `2 challenges left` for the same catcher situation.
+
+New guide path:
+
+```text
+estimated overturn value for each count
+  - selected challenge cost model
+  - selected success probability
+  -> the same recommendation threshold function used by Live Recommendation
+```
+
+This is still a guide approximation because the binder cells use score/inning bands, not exact Savant game states. But the pipeline now uses the same decision ingredients as the live model instead of enforcing an after-the-fact monotonic rule.
+
+## 2026-05-24 - Guide lookup uses representative exact Savant states
+
+Decision: use exact Baseball Savant win-expectancy rows for the guide's representative inning/base-out/score buckets, backed by a precomputed local cache.
+
+Reason: the fast guide approximation created odd isolated pockets. Example: default v1.5, Batter, 1 challenge left, innings 1-3 top half showed a small `Full Count` island only at `Up 2-3` with 0 outs and runners on second/third or loaded. Exact representative Savant checks showed that the real pattern was broader: high-runner states can justify full-count challenges across several score columns, while the approximation was underpricing adjacent cells.
+
+Implementation:
+
+```text
+Guide cell -> representative inning/half/base-out state
+           -> representative score differential(s)
+           -> exact Savant ball-vs-strike rows
+           -> selected p and C
+           -> same recommendation threshold function
+```
+
+For grouped score columns, the guide evaluates both representative differentials:
+
+```text
+D4+ uses -4 and -5
+D2-3 uses -2 and -3
+U2-3 uses +2 and +3
+U4+ uses +4 and +5
+```
+
+The app stores the representative Savant tables in `app/data/guide-winexp.json` so guide refreshes do not require hundreds of live network calls. If a representative state is missing from the cache, the guide client can fall back to Savant live.

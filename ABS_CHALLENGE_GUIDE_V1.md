@@ -40,18 +40,18 @@ V = WinExpectancy(overturned_state) - WinExpectancy(ump_call_state)
 
 | Level | Batter Instruction | Catcher Instruction |
 |---|---|---|
-| Closed | Only challenge unmistakable misses. | Only challenge unmistakable misses. |
+| No-Brainers | Only challenge unmistakable misses. | Only challenge unmistakable misses. |
 | Full Count | Only challenge on 3-2. | Only challenge on 3-2. |
 | Deep Count | Challenge on any two-strike or three-ball count. | Challenge on any two-strike or three-ball count. |
-| Open | Challenge any taken pitch you strongly believe was missed. | Challenge any called ball you strongly believe was missed. |
+| Aggressive | Challenge any close pitch. | Challenge any close pitch. |
 
 Player-facing shorthand:
 
 ```text
-Closed
+No-Brainers
 Full count only
 Deep counts
-Open
+Aggressive
 ```
 
 ## Batter vs Catcher Guidance
@@ -178,10 +178,10 @@ The model assigns the highest level that clears its threshold.
 
 | Level | Threshold |
 |---|---|
-| Closed | Fallback if Full Count does not clear. |
+| No-Brainers | Fallback if Full Count does not clear. |
 | Full Count | Median expected value of full-count opportunities is at least zero. |
 | Deep Count | Median expected value of full-count plus deep-count opportunities is at least zero, and at least 55% are positive value. |
-| Open | Median expected value of all opportunities is at least zero, and at least 65% are positive value. |
+| Aggressive | Median expected value of all opportunities is at least zero, and at least 65% are positive value. |
 
 Why median and positive-rate checks are both used:
 
