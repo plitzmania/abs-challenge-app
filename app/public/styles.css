@@ -1309,30 +1309,6 @@ tr:last-child td {
   min-height: 132px;
 }
 
-.method-cluster-label {
-  grid-column: 2 / span 2;
-  align-self: end;
-  justify-self: center;
-  padding: 4px 10px;
-  border: 1px solid #c6d4cd;
-  border-radius: 999px;
-  background: #eef6f2;
-  color: var(--teal-dark);
-  font-size: 0.74rem;
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
-.method-box.no-brainers,
-.method-box.aggressive {
-  grid-row: 2;
-}
-
-.method-box.full-count,
-.method-box.deep-count {
-  grid-row: 2;
-}
-
 .method-box.no-brainers {
   grid-column: 1;
 }
@@ -1518,17 +1494,12 @@ tr:last-child td {
     grid-template-columns: 1fr;
   }
 
-  .method-cluster-label,
   .method-box.no-brainers,
   .method-box.full-count,
   .method-box.deep-count,
   .method-box.aggressive {
     grid-column: auto;
     grid-row: auto;
-  }
-
-  .method-cluster-label {
-    justify-self: start;
   }
 
   .base-field {
